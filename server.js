@@ -7,7 +7,7 @@ const socketio = require('socket.io')
 const io = socketio(server)
 const PORT = 3000 || process.env.PORT
 const formatMessage = require('./utils/messages')
-const {userJoin, getCurrentUser} = require('./utils/users')
+const {userJoin, getCurrentUser, userLeave, getRoomUsers} = require('./utils/users')
 
 const botname = "Yetti"
 
@@ -25,17 +25,40 @@ io.on('connection', socket =>{
         socket.emit('message', formatMessage(botname,'Welcome to YettiChat')); // This is to just the single client
 
         // Send a broadcast message when a user connects to the specific room
-        socket.broadcast.to(user.room).emit('message', formatMessage(botname,`${user.username} joined the chat`)); //This sends a broadcast to everyone using the chat app except the one that joined the chat
+        socket.broadcast
+        .to(user.room)
+        .emit('message', formatMessage(botname,`${user.username} joined the chat`)); //This sends a broadcast to everyone using the chat app except the one that joined the chat
+
+
+        // Send users and room info
+        io.to(user.room).emit('roomUsers',{
+            room: user.room,
+            users: getRoomUsers(user.room)
+        } )
 
     })
     //Listen for chatMessage
     socket.on('chatMessage', msg =>{
         const user = getCurrentUser(socket.id)
-        io.to(user.room).emit('message',formatMessage(`${user.username}`, msg))
+        io
+        .to(user.room)
+        .emit('message',
+        formatMessage(`${user.username}`, msg))
     })
      //Runs when a client disconnects
      socket.on('disconnect', () => {
-        io.emit('message', formatMessage(botname,'A user left the chat room'))//io.emit()// This is to all the clients in general
+        const user = userLeave(socket.id)
+        
+        if (user){
+            io.to(user.room).emit('message', formatMessage(botname,`${user.username} left the chat room`))//io.emit()// This is to all the clients in general
+       
+            // Send users and room info
+            io.to(user.room).emit('roomUsers',{
+            room: user.room,
+            users: getRoomUsers(user.room)
+        } )
+        }
+
     })
 })
 
